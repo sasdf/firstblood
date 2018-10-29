@@ -1,19 +1,18 @@
-import functools as fn
-from math import inf
-from .unified import Unified
+from .file import UnifiedFile
 
 
 def _shortcut(funcname, mode, ret):
     def inner(path, *args, **kwargs):
-        with Unified(open(path, mode)) as f:
+        with UnifiedFile.open(path, mode) as f:
             res = getattr(f, funcname)(*args, **kwargs)
             if ret: return res
     inner.__name__ = funcname
     inner.__qualname__ = funcname
     return inner
 
+
 read           = _shortcut('read',       'r',  True)
-readline       = _shortcut('readline',   'r',  True)
+readaline      = _shortcut('readline',   'r',  True) # avoid name collision of module readline
 readlines      = _shortcut('readlines',  'r',  True)
 readuntil      = _shortcut('readuntil',  'r',  True)
 write          = _shortcut('write',      'w',  False)

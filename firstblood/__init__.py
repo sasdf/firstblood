@@ -1,3 +1,5 @@
+import unifiedIO as uio
+
 from . import patches
 
 from .patches.patch import needFlush
