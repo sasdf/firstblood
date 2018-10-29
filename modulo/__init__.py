@@ -121,9 +121,9 @@ class Mod(numbers.Integral):
     def __truediv__(self, other):
         return self * invmod(other, self.modulo)
 
-    @funcWrapper
+    @property
     def inv(self):
-        return invmod(self.num, self.modulo)
+        return Mod(invmod(self.num, self.modulo), self.modulo)
 
     @funcWrapper
     def __mod__(self, other):
