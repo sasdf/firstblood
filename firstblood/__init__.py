@@ -1,4 +1,4 @@
-import unifiedIO as uio
+from . import unifiedIO as uio
 
 from . import patches
 
