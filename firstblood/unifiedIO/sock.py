@@ -6,8 +6,6 @@ from .decors import _raw
 # --------------------
 # Unsupported Virtuals
 # --------------------
-# @_virtual('_read1')
-# @_virtual('_readline')
 # @_virtual('_writelines')
 # @_virtual('_seek')
 # @_virtual('_seekable')
@@ -21,7 +19,9 @@ from .decors import _raw
 # ----------------
 # Inherit from raw
 # ----------------
+@_raw('_settimeout')
 @_raw('_close')
+@_raw('_fileno')
 
 class UnifiedTCPSock(UnifiedBase):
     @classmethod
@@ -34,16 +34,13 @@ class UnifiedTCPSock(UnifiedBase):
         super().__init__(binary=True)
         self.raw = sock
 
-    def _read(self, size=-1):
-        if size >= 0:
-            return self.raw.recv(size)
-        else:
-            buf = self._empty
-            res = ''
-            while len(res):
-                res = self.raw.recv(self._BUFFER_SIZE)
-                buf += res
-            return buf
+    def _underflow(self, size=-1):
+        size = max(size, self._BUFFER_SIZE)
+        res = self.raw.recv(size)
+        if not len(res):
+            return False
+        self._buffer += res
+        return True
 
     def _readable(self):
         return True

@@ -37,7 +37,7 @@ def _weakalias(attrname, funcname=None, prop=False):
             return cls
         def inner(self, *args, **kwargs):
             func = getattr(self, funcname)
-            return func if prop else func(self, *args, **kwargs)
+            return func if prop else func(*args, **kwargs)
         inner.__name__ = attrname
         inner.__qualname__ = f'{cls.__name__}.{attrname}'
         setattr(cls, attrname, property(inner) if prop else inner)
