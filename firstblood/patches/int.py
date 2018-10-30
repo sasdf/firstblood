@@ -1,6 +1,7 @@
 import math
 import struct
 import functools as fn
+from libnum import common
 from .patch import patch, needFlush
 from .conv import convDB
 from ..modulo import Mod, GF2_8, GF2_16, GF2_32, GF2_64
@@ -17,7 +18,6 @@ def alignStr(x, size, pad=' ', padzero=True):
         return pad * size if padzero else x
     x = pad * (-len(x) % size) + x
     return x
-
 
 def int2hex(self):
     """Convert integer to %02x hex strings"""
@@ -72,6 +72,8 @@ def addMethods():
     patch(int, 'u32', property(GF2_32))
     patch(int, 'u64', property(GF2_64))
     patch(int, 'mod', lambda x, n: Mod(x, n))
+    patch(int, 'gcd', lambda a, *b: common.gcd(a, *map(int,b)))
+    patch(int, 'root', lambda a, b: common.nroot(a, b))
     patch(int, 'p8', property(fn.partial(struct.pack, '<B')))
     patch(int, 'p16', property(fn.partial(struct.pack, '<H')))
     patch(int, 'P16', property(fn.partial(struct.pack, '>H')))

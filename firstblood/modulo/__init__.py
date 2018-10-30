@@ -4,6 +4,12 @@ import functools as fn
 from libnum import invmod
 
 
+from libnum import sqrtmod, has_sqrtmod
+from libnum.primes import prime_test
+from libnum.modular import solve_crt
+from libnum.common import lcm, gcd
+
+
 def funcWrapper(func):
     def inner(self, other):
         if isinstance(other, Mod):
@@ -73,6 +79,7 @@ class Mod(numbers.Integral):
             else:
                 self.modexpr = str(modulo)
 
+    # operater
     __lt__ = cmpWrapper('__lt__')
     __le__ = cmpWrapper('__le__')
     __eq__ = cmpWrapper('__eq__')
@@ -132,7 +139,6 @@ class Mod(numbers.Integral):
     def mod(self, other):
         return self % other
 
-
     @funcWrapper
     def __rpow__(self, other):
         return pow(other, self.num, self.modulo)
@@ -144,6 +150,9 @@ class Mod(numbers.Integral):
     @funcWrapper
     def __rmod__(self, other):
         return Mod(other, self.num)
+
+    def gcd(self, *other):
+        return gcd(self.num, *other)
 
     @property
     def int(self):
@@ -157,6 +166,31 @@ class Mod(numbers.Integral):
 
     def __repr__(self):
         return f'({self.num} mod {self.modexpr})'
+    
+    def sqrt(self, factors=None):
+        "retun x : x^2 = num mod modulo"
+        if prime_test(self.modulo):
+            if has_sqrtmod(self.num,{self.modulo:1}):
+                return list(map(lambda x: Mod(x,self.modulo),sqrtmod(self.num,{self.modulo:1})))
+            else :
+                return []
+        elif factors == None:
+            raise ValueError('Need factorization for non-prime modulo. ex: factors={p:1,q:1,...}')
+        else :
+            n = 1
+            for p,e in factors.items():
+                n *= pow(p,e)
+                if not prime_test(p) :
+                    raise ValueError('Error factorization.')
+            if n == self.modulo :
+                return list(map(lambda x: Mod(x,self.modulo),sqrtmod(self.num,factors)))
+            else :
+                raise ValueError('Error factorization.')
+    
+    @classmethod
+    def crt(cls, remainders, modules):
+        "Chinese Remainder Theoreme, modules and remainders are lists."
+        return cls(solve_crt(remainders,modules),lcm(*modules))
 
 
 GF2_64 = fn.partial(Mod, modulo=2**64)
