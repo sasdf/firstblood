@@ -21,11 +21,14 @@ class TimeoutContext(object):
         self = cls(parent)
         self.timeout = inf
         self.deadline = inf
+        self.safe = True
         self.parent._timeout = self
         return self
 
-    def __init__(self, parent, timeout=None, total=None, overwrite=False):
-        self.args = (timeout, total, overwrite)
+    def __init__(self, parent, timeout=None, total=None, overwrite=False, propagate=False):
+        self.args = (timeout, total)
+        self.overwrite = overwrite
+        self.propagate = propagate
         self.parent = parent
 
     @property
@@ -39,15 +42,16 @@ class TimeoutContext(object):
         return res
 
     def start(self):
-        timeout, total, overwrite = self.args
+        timeout, total = self.args
         self.prev = self.parent._timeout
         timeout, total = toinf(timeout), toinf(total)
         deadline = time.time() + total
-        if not overwrite:
+        if not self.overwrite:
             timeout = min(timeout, self.prev.timeout)
             deadline = min(deadline, self.prev.deadline)
         self.timeout = timeout
         self.deadline = deadline
+        self.safe = True
         self.parent._timeout = self
 
     def stop(self):
@@ -61,4 +65,6 @@ class TimeoutContext(object):
     def __exit__(self, exc, *exc_details):
         self.stop()
         if exc is TimeoutError:
-            return True
+            self.safe = False
+            if not self.propagate:
+                return True

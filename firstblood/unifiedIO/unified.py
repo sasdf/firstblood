@@ -237,8 +237,8 @@ class UnifiedBase(object):
         """Print a prompt and read some bytes, similar to builtin `input` function"""
         return self.write(prompt).flush().readsome()
 
-    def timeout(self, timeout=None, total=None, overwrite=False):
-        return TimeoutContext(self, timeout, total, overwrite)
+    def timeout(self, timeout=None, total=None, overwrite=False, propagate=False):
+        return TimeoutContext(self, timeout, total, overwrite, propagate)
 
     def pipe(self, dest, block=False, stop=None):
         stop = stop or threading.Event()

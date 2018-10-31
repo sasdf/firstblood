@@ -302,21 +302,50 @@ str_var.dec(encoding)
 TBD
 
 Inspired by the awesome interface of pwntools,
-we provide a unified interface for communicating between proceess, network, or even files.
+we provide a unified interface for communicating between proceess, network, and even various file formats.
 ```python
-r.line([size, keep=False])  # read a line up to size bytes. alias of r.readline([size])
+r.line(keep=False)  # read a line. alias of r.readline()
 r.line(data)  # alias of r.writeline(data)
-r.lines([hint, keep=False]) # read all lines up to hint bytes. alias of r.readlines([hint])
+r.lines(keep=False) # read all lines until EOF. alias of r.readlines()
 r.until('input: ', [keep=False, drop=True]) # alias of r.readuntil('input: ')
-r.read([n]) # read up to n bytes
+r.read([n]) # read exactly n bytes. alias of r.exactly([n]) or r.readexactly([n])
+r.some() # read all available data, block if nothing available. alias of r.readsome()
 r.peek([n]) # peek up to n bytes
 r.write(data) # write data
 r.seek(n) # file only
+r.pipe(dest, [block=False]) # Start another thread for piping the stream
+r.interact() # GET THE SHELLLLLLL
 ```
 Moreover, we make it chainable to provide a cleaner interface.
 ```python
 r.after('input: ').line(data).read(5)
-r.before('0x').line()
+r.seek(0).before('0x').line()
+```
+And a sweet timeout context manager for handling bad connection.
+It will escape from the block if we hit the timeout:
+```python
+# 1 sec timeout on each I/O operation
+with r.timeout(1):
+    data = r.after('output: ').line()
+    data = r.after('input: ').line(data).after('output: ').line()
+    
+# Total 1 sec timeout in whole timeout block
+with r.timeout(total=1) as timer:
+    data = r.after('output: ').line()
+    data = r.after('input: ').line(data).after('output: ').line()
+# Whether it hit the timeout of not
+print(timer.safe)
+    
+# Or even nested block
+with r.timeout(total=5):
+    data = r.after('start:')
+    for i in range(10):
+        with r.timeout(1):
+            data = r.after('input: ').line(str(i))
+    for i in range(10):
+        # Reraise the TimeoutError when exiting the block
+        with r.timeout(1, propagate=True):
+            data = r.after('input: ').line(str(i))
 ```
 
 We also provide shortcuts to files to avoid `with open` block:
