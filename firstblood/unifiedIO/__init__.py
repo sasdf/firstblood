@@ -4,10 +4,10 @@ from .shortcuts import *
 from .unified import *
 from .file import *
 from .sock import *
+from .stdio import stdio, stdbio
 
 
 open = UnifiedFile.open
-stdio = UnifiedFile(sys.stdin)
 tcp = UnifiedTCPSock.connect
 local = functools.partial(UnifiedTCPSock.connect, 'localhost')
 

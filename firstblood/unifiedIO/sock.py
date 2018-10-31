@@ -12,7 +12,6 @@ from .timeout import TimeoutError
 # @_virtual('_seek')
 # @_virtual('_seekable')
 # @_virtual('_tell')
-# @_virtual('_flush')
 # @_virtual('_enter')
 # @_virtual('_exit')
 # @_virtual('_iter')
@@ -21,7 +20,6 @@ from .timeout import TimeoutError
 # ----------------
 # Inherit from raw
 # ----------------
-@_raw('_settimeout')
 @_raw('_close')
 @_raw('_fileno')
 
@@ -66,7 +64,13 @@ class UnifiedTCPSock(UnifiedBase):
         return True
 
     def _write(self, data):
+        if isinstance(data, str):
+            enc = getattr(self._buffer, 'encoding', 'utf8')
+            data = data.encode(enc)
         return self.raw.sendall(data)
 
     def _writeable(self):
+        return True
+
+    def _flush(self):
         return True

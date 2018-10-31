@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import functools
 import threading
 
@@ -7,7 +8,7 @@ from .decors import _chainable, _virtual, _weakalias
 from .timeout import TimeoutContext
 from .buffer import RawBuffer, TextBuffer
 
-# TODO: regex readuntil, interact, handling non-str, universal newline
+# TODO: regex readuntil, handling non-str, universal newline
 
 # ---------
 # Chainable
@@ -24,7 +25,6 @@ from .buffer import RawBuffer, TextBuffer
 # ----------------
 # Virtuals Methods
 # ----------------
-@_virtual('_settimeout')
 @_virtual('_underflow')
 @_virtual('_underflownb')
 @_virtual('_readable')
@@ -139,7 +139,8 @@ class UnifiedBase(object):
     nextline = readline
 
     def writeline(self, b):
-        self._write(b + self._linesep)
+        sep = self._linesep
+        self._write(b + sep)
         return self
 
     def line(self, data=None, keep=False):
@@ -159,17 +160,6 @@ class UnifiedBase(object):
         self._seek(*args, **kwargs)
         return self
 
-    def readsome(self):
-        """Read and return some bytes"""
-        if self._underflownb() == False:
-            self._raiseEOF()
-        if self._buffer.notempty:
-            return self._buffer.get()
-        if not self._underflow():
-            self._raiseEOF()
-        return self._buffer.get()
-    some = readsome
-
     def readeager(self):
         """Read and return all available bytes, block if nothing available."""
         while self._underflownb():
@@ -182,6 +172,18 @@ class UnifiedBase(object):
             pass
         return self._buffer.get()
     eager = readeager
+    some = readsome = readeager
+
+    def readlazy(self):
+        """Read and return some bytes"""
+        if self._underflownb() == False:
+            self._raiseEOF()
+        if self._buffer.notempty:
+            return self._buffer.get()
+        if not self._underflow():
+            self._raiseEOF()
+        return self._buffer.get()
+    lazy = readlazy
 
     def readexactly(self, size=-1):
         """Read and return exactly `size` bytes."""
@@ -231,13 +233,57 @@ class UnifiedBase(object):
     before = functools.partial(readuntil, keep=False, drop=False)
     after = functools.partial(readuntil, keep=False, drop=True)
 
+    def input(self, prompt=''):
+        """Print a prompt and read some bytes, similar to builtin `input` function"""
+        return self.write(prompt).flush().readsome()
+
     def timeout(self, timeout=None, total=None, overwrite=False):
         return TimeoutContext(self, timeout, total, overwrite)
 
+    def pipe(self, dest, block=False, stop=None):
+        stop = stop or threading.Event()
+        def worker():
+            try:
+                while not stop.is_set():
+                    with self.timeout(total=0.1):
+                        data = self.readlazy()
+                        dest.write(data)
+                return False
+            except EOFError:
+                stop.set()
+                return True
+        if block:
+            return worker()
+        else:
+            thr = threading.Thread(target=worker)
+            thr.start()
+            def cleanup():
+                stop.set()
+                thr.join()
+            return (cleanup, stop)
 
     def interact(self):
-        # TODO
-        pass
+        from .stdio import stdio
+        print('[*] Switching to interactive mode')
+        (cleanup, stop) = stdio.pipe(self)
+        try:
+            while not stop.is_set():
+                with self.timeout(total=0.1):
+                    data = self.readlazy()
+                    if isinstance(data, bytes):
+                        data = ''.join(
+                            chr(c) if 32 <= c < 127 or c == 0x0a
+                            else '\\x%02x' % c
+                            for c in data)
+                    stdio.write(data).flush()
+            print('[*] Exiting interactive mode')
+        except EOFError:
+            raise EOFError('Reach end of file during interactive mode')
+        except KeyboardInterrupt:
+            print('[*] Exiting interactive mode')
+        finally:
+            stop.set()
+            cleanup()
 
     def __enter__(self, *args, **kwargs):
         self._enter(*args, **kwargs)

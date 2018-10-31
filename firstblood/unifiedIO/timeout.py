@@ -52,10 +52,13 @@ class TimeoutContext(object):
 
     def stop(self):
         self.parent._timeout = self.prev
+        self.parent._timeout.remaining # propagate timeout
 
     def __enter__(self):
         self.start()
         return self
 
-    def __exit__(self, *exc_details):
+    def __exit__(self, exc, *exc_details):
         self.stop()
+        if exc is TimeoutError:
+            return True

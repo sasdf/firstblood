@@ -14,9 +14,9 @@ def _chainable(funcname):
     return transformer
 
 
-def _virtual(attrname, prop=False):
+def _virtual(attrname, prop=False, override=False):
     def transformer(cls):
-        if hasattr(cls, attrname):
+        if hasattr(cls, attrname) and not override:
             return cls
         def inner(self, *args, **kwargs):
             raise io.UnsupportedOperation()
@@ -45,14 +45,14 @@ def _weakalias(attrname, funcname=None, prop=False):
     return transformer
 
 
-def _raw(attrname, funcname=None, prop=False):
+def _inherit(attrname, funcname=None, prop=False, src='raw'):
     if funcname is None:
         funcname = attrname.lstrip('_')
 
     def transformer(cls):
         def inner(self, *args, **kwargs):
             try:
-                func = getattr(self.raw, funcname)
+                func = getattr(getattr(self, src), funcname)
             except AttributeError:
                 func = getattr(super(cls, self), attrname)
             return func if prop else func(*args, **kwargs)
@@ -61,3 +61,5 @@ def _raw(attrname, funcname=None, prop=False):
         setattr(cls, attrname, property(inner) if prop else inner)
         return cls
     return transformer
+
+_raw = _inherit

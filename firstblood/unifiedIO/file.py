@@ -8,7 +8,6 @@ from .timeout import TimeoutError
 # --------------------
 # Unsupported Virtuals
 # --------------------
-# @_virtual('_settimeout')
 # @_virtual('_iter')
 # @_virtual('_next')
 
@@ -60,6 +59,7 @@ class UnifiedFile(UnifiedBase):
             self._rawfile = file
         else:
             assert(not hasattr(file, 'encoding'))
+            super().__init__(encoding=None)
             self.raw = file
         self.closed = file.closed
         self._input1 = self.raw.read1
