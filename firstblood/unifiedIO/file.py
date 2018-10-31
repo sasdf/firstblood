@@ -2,6 +2,7 @@ import io
 import select
 from .unified import UnifiedBase
 from .decors import _raw
+from .timeout import TimeoutError
 
 
 # --------------------
@@ -48,27 +49,32 @@ class UnifiedFile(UnifiedBase):
 
     def __init__(self, file):
         binary = 'b' in file.mode
-        super().__init__(binary=binary)
 
         # Variables - public
-        self.raw = file
-        self.closed = file.closed
-        if hasattr(self.raw, 'read1'):
-            self._input1 = self.raw.read1
+        if not binary:
+            # Assuming TextWrapper
+            assert(hasattr(file, 'buffer') and hasattr(file, 'encoding'))
+            assert(isinstance(file.encoding, str))
+            super().__init__(encoding=file.encoding)
+            self.raw = file.buffer
+            self._rawfile = file
         else:
-            self._input1 = self.raw.read
+            assert(not hasattr(file, 'encoding'))
+            self.raw = file
+        self.closed = file.closed
+        self._input1 = self.raw.read1
 
     # ---------------
     # Private Methods
     # ---------------
 
-    def _select(self, read=True):
+    def _select(self, read=True, timeout=None):
         args = [[], [], []]
         if read:
             args[0].append(self._fileno())
         else:
             args[1].append(self._fileno())
-        if timeout >= 0:
+        if timeout is not None and timeout >= 0:
             args.append(timeout)
         res = select.select(*args)
         return sum(map(len, res)) > 0
@@ -77,10 +83,26 @@ class UnifiedFile(UnifiedBase):
     # Virtual Methods
     # ---------------
 
-    def _underflow(self, size=-1):
-        size = max(size, self._BUFFER_SIZE)
-        res = self._input1(size)
-        if not len(res):
-            return False
-        self._buffer += res
+    def _underflow(self):
+        inc = 0
+        while not inc:
+            if self._select(timeout=self._timeout.remaining):
+                res = self._input1(self._CHUNK_SIZE)
+                if not len(res):
+                    return False
+                inc = self._buffer.put(res)
+            else:
+                raise TimeoutError('Timeout while reading file')
+        return True
+
+    def _underflownb(self):
+        inc = 0
+        while not inc:
+            if self._select(timeout=0):
+                res = self._input1(self._CHUNK_SIZE)
+                if not len(res):
+                    return False
+                inc = self._buffer.put(res)
+            else:
+                return None
         return True

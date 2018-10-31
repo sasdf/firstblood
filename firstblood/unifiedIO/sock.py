@@ -1,6 +1,8 @@
 import socket
+import time
 from .unified import UnifiedBase
 from .decors import _raw
+from .timeout import TimeoutError
 
 
 # --------------------
@@ -25,21 +27,39 @@ from .decors import _raw
 
 class UnifiedTCPSock(UnifiedBase):
     @classmethod
-    def connect(cls, ip, port):
+    def connect(cls, ip, port, encoding='utf8'):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((ip, port))
-        return cls(sock)
+        return cls(sock, encoding)
 
-    def __init__(self, sock):
-        super().__init__(binary=True)
+    def __init__(self, sock, encoding='utf8'):
+        super().__init__(encoding=encoding)
         self.raw = sock
 
-    def _underflow(self, size=-1):
-        size = max(size, self._BUFFER_SIZE)
-        res = self.raw.recv(size)
-        if not len(res):
-            return False
-        self._buffer += res
+    def _underflow(self):
+        inc = 0
+        while not inc:
+            self.raw.settimeout(self._timeout.remaining)
+            try:
+                res = self.raw.recv(self._CHUNK_SIZE)
+            except (socket.timeout, BlockingIOError):
+                raise TimeoutError('Timeout while receiving from socket')
+            if not len(res):
+                return False
+            inc = self._buffer.put(res)
+        return True
+
+    def _underflownb(self):
+        inc = 0
+        while not inc:
+            self.raw.settimeout(0)
+            try:
+                res = self.raw.recv(self._CHUNK_SIZE)
+                if not len(res):
+                    return False
+                inc = self._buffer.put(res)
+            except BlockingIOError:
+                return None
         return True
 
     def _readable(self):
