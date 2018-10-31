@@ -304,6 +304,16 @@ TBD
 Inspired by the awesome interface of pwntools,
 we provide a unified interface for communicating between proceess, network, and even various file formats.
 ```python
+#-- Factory --#
+uio.open('/path/to/file', [mode]) # open local file
+uio.tcp(addr, port) # connect to a remote server
+uio.local(port) # connect to localhost
+uio.stdio # wrapped stdin and stdout
+uio.spawn(cmd) # spawn a process [WIP]
+uio.bind(ip, port) # start a tcp server [WIP]
+uio.elf(cmd) # read ELF file [WIP]
+
+#-- Method --#
 r.line(keep=False)  # read a line. alias of r.readline()
 r.line(data)  # alias of r.writeline(data)
 r.lines(keep=False) # read all lines until EOF. alias of r.readlines()
@@ -333,7 +343,7 @@ with r.timeout(1):
 with r.timeout(total=1) as timer:
     data = r.after('output: ').line()
     data = r.after('input: ').line(data).after('output: ').line()
-# Whether it hit the timeout of not
+# Whether it hit the timeout or not
 print(timer.safe)
     
 # Or even nested block
