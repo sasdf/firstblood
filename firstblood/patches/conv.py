@@ -1,5 +1,6 @@
 import codecs
 import json
+import urllib.parse
 from collections import namedtuple
 from .patch import patch, needFlush
 
@@ -26,6 +27,15 @@ def singleline(inp):
 
 def x2bytes(x):
     return str(x).encode('utf8')
+
+
+def xesc(inp):
+    return ''.join(f'\\x{b:02x}' for b in inp)
+
+
+def uesc(inp):
+    escape = lambda u: f'\\U{u:08x}' if u >> 16 else f'\\u{u:04x}'
+    return ''.join(map(escape, map(ord, inp)))
 
 
 # {from}_{to}, where * represents wildcard
@@ -74,6 +84,10 @@ codecsDB = {
     'ascii_enc': CodecsIOFmt(str, bytes),
     'ascii_dec': CodecsIOFmt(bytes, str),
     'json_dec': CodecsIOFmt(str, None, func=json.loads),
+    'x_enc': CodecsIOFmt(bytes, str, func=xesc),
+    'u_enc': CodecsIOFmt(str, str, func=uesc),
+    'url_enc': CodecsIOFmt(bytes, str, func=urllib.parse.quote_from_bytes),
+    'url_dec': CodecsIOFmt(str, bytes, func=urllib.parse.unquote_to_bytes),
 }
 
 

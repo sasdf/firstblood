@@ -44,6 +44,12 @@ def addMethods():
     patch(bytes, 'base64d', property(fn.partial(convdec, encoding='base64')))
     patch(bytes, 'b64d', property(fn.partial(convdec, encoding='base64')))
 
+    patch(bytes, 'urle', property(fn.partial(convenc, encoding='url')))
+    patch(bytes, 'urld', property(fn.partial(convdec, encoding='url')))
+
+    patch(bytes, 'xe', property(fn.partial(convenc, encoding='x')))
+    patch(bytes, 'ue', property(fn.partial(convenc, encoding='u')))
+
     patch(bytes, 'jsond', property(fn.partial(convdec, encoding='json')))
 
     patch(bytes, 'int', property(fn.partial(int.from_bytes, byteorder='little')))
