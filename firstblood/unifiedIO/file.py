@@ -3,6 +3,7 @@ import select
 from .unified import UnifiedBase
 from .decors import _raw
 from .timeout import TimeoutError
+from .buffer import RawBuffer, TextBuffer
 
 
 # --------------------
@@ -16,14 +17,11 @@ from .timeout import TimeoutError
 # ----------------
 
 @_raw('_readable')
-@_raw('_write')
 @_raw('_writable')
-@_raw('_writelines')
 @_raw('_fileno')
 @_raw('_seek')
 @_raw('_seekable')
 @_raw('_tell')
-@_raw('_flush')
 @_raw('_close')
 @_raw('_enter', '__enter__')
 @_raw('_exit', '__exit__')
@@ -54,12 +52,16 @@ class UnifiedFile(UnifiedBase):
             # Assuming TextWrapper
             assert(hasattr(file, 'buffer') and hasattr(file, 'encoding'))
             assert(isinstance(file.encoding, str))
-            super().__init__(encoding=file.encoding)
+            inpbuf = TextBuffer(file.encoding)
+            outbuf = RawBuffer(file.encoding)
+            super().__init__(inpbuf, outbuf)
             self.raw = file.buffer
             self._rawfile = file
         else:
             assert(not hasattr(file, 'encoding'))
-            super().__init__(encoding=None)
+            inpbuf = RawBuffer()
+            outbuf = RawBuffer()
+            super().__init__(inpbuf, outbuf)
             self.raw = file
         self.closed = file.closed
         self._input1 = self.raw.read1
@@ -90,7 +92,7 @@ class UnifiedFile(UnifiedBase):
                 res = self._input1(self._CHUNK_SIZE)
                 if not len(res):
                     return False
-                inc = self._buffer.put(res)
+                inc = self._inpbuf.put(res)
             else:
                 raise TimeoutError('Timeout while reading file')
         return True
@@ -102,7 +104,12 @@ class UnifiedFile(UnifiedBase):
                 res = self._input1(self._CHUNK_SIZE)
                 if not len(res):
                     return False
-                inc = self._buffer.put(res)
+                inc = self._inpbuf.put(res)
             else:
                 return None
         return True
+
+    def _overflow(self):
+        data = self._outbuf.get()
+        self._raw.write(data)
+        self._raw.flush()

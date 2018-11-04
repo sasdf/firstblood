@@ -1,14 +1,14 @@
 import codecs
+import os
 
 
 class RawBuffer(object):
-    def __init__(self, binary=True):
-        if binary:
-            self._buffer = b''
-            self.null = b''
-        else:
-            self._buffer = ''
-            self.null = ''
+    def __init__(self, encoding='utf8'):
+        self._buffer = b''
+        self.null = b''
+        self.datatype = bytes
+        self.encoding = encoding
+        self.linesep = os.linesep.encode('ascii')
 
     @property
     def notempty(self):
@@ -50,8 +50,18 @@ class RawBuffer(object):
         self._buffer = data + self._buffer
 
     def put(self, data):
+        if isinstance(data, str):
+            data = data.encode(self.encoding)
+        elif not isinstance(data, bytes):
+            data = str(data).encode(self.encoding)
         self._buffer += data
         return len(data)
+
+    def endl(self):
+        self._buffer += self.linesep
+
+    def eof(self):
+        pass
 
     def clear(self):
         self._buffer = self.null
@@ -61,12 +71,14 @@ class RawBuffer(object):
 
 
 class TextBuffer(RawBuffer):
-    def __init__(self, encoding):
+    def __init__(self, encoding='utf8'):
         self._buffer = ''
         self.encoding = encoding
         self._encoder = codecs.getencoder(encoding)
         self._decoder = codecs.getincrementaldecoder(encoding)()
         self.null = ''
+        self.linesep = os.linesep
+        self.datatype = str
 
     @property
     def undecoded(self):
@@ -79,9 +91,32 @@ class TextBuffer(RawBuffer):
         return len(raw) + len(self.undecoded)
 
     def put(self, data):
-        res = self._decoder.decode(data)
+        if isinstance(data, bytes):
+            res = self._decoder.decode(data)
+        else:
+            if len(self.undecoded) > 0:
+                raise UnicodeDecodeError(
+                    self._buffer.encoding,
+                    self._buffer.undecoded,
+                    0,
+                    1,
+                    'Truncated bytes.',
+                )
+            if not isinstance(data, str):
+                data = str(data)
+            res = data
         self._buffer += res
         return len(res)
+
+    def eof(self):
+        if len(self.undecoded) > 0:
+            raise UnicodeDecodeError(
+                self._buffer.encoding,
+                self._buffer.undecoded,
+                0,
+                1,
+                'Truncated bytes.',
+            )
 
     def clear(self):
         self._buffer = self.null

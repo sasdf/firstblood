@@ -2,55 +2,61 @@ import sys
 import io
 import select
 
-from .file import UnifiedFile
-from .decors import _inherit, _virtual
+from .unified import UnifiedBase
+from .timeout import TimeoutError
+from .buffer import RawBuffer, TextBuffer
+from .decors import _inherit
 
 
 # --------------------
 # Unsupported Virtuals
 # --------------------
-@_virtual('_iter', override=True)
-@_virtual('_next', override=True)
-@_virtual('_writelines', override=True)
-@_virtual('_fileno', override=True)
-@_virtual('_tell', override=True)
-@_virtual('_close', override=True)
-@_virtual('_enter', '__enter__', override=True)
-@_virtual('_exit', '__exit__', override=True)
-@_virtual('_seekable', override=True)
 
 # ----------------
 # Inherit from raw
 # ----------------
 @_inherit('_writable', src='out')
-@_inherit('_flush', src='out')
+@_inherit('_readable', src='inp')
 
 # ---------------
 # Method Bindings
 # ---------------
 
-class UnifiedFileDuplex(UnifiedFile):
+class UnifiedFileDuplex(UnifiedBase):
     # -----------
     # Constructor
     # -----------
 
-    @classmethod
-    def open(cls, *args, **kwargs):
-        return cls(io.open(*args, **kwargs))
-
     def __init__(self, inp, out, name=''):
-        super().__init__(inp)
-        self._outfile = out
+        if 'b' not in inp.mode:
+            # Assuming TextWrapper
+            assert(hasattr(inp, 'buffer') and hasattr(inp, 'encoding'))
+            assert(isinstance(inp.encoding, str))
+            inpbuf = TextBuffer(inp.encoding)
+            self.inp = inp.buffer
+            self._inpfile = inp
+        else:
+            assert(not hasattr(inp, 'encoding'))
+            inpbuf = RawBuffer()
+            self.inp = inp
+        self._input1 = self.inp.read1
+            
         if 'b' not in out.mode:
             # Assuming TextWrapper
             assert(hasattr(out, 'buffer') and hasattr(out, 'encoding'))
             assert(isinstance(out.encoding, str))
+            outbuf = RawBuffer(out.encoding)
             self.out = out.buffer
-            self._rawfile = out
+            self._outfile = out
         else:
             assert(not hasattr(out, 'encoding'))
+            outbuf = RawBuffer()
             self.out = out
-        self._outencoding = getattr(out, 'encoding', None)
+            
+        self.closed = inp.closed or out.closed
+        self.name = name
+        
+        super().__init__(inpbuf, outbuf)
 
     # ---------------
     # Private Methods
@@ -59,7 +65,7 @@ class UnifiedFileDuplex(UnifiedFile):
     def _select(self, read=True, timeout=None):
         args = [[], [], []]
         if read:
-            args[0].append(self.raw.fileno())
+            args[0].append(self.inp.fileno())
         else:
             args[1].append(self.out.fileno())
         if timeout is not None and timeout >= 0:
@@ -71,14 +77,34 @@ class UnifiedFileDuplex(UnifiedFile):
     # Virtual Methods
     # ---------------
 
-    def _write(self, data):
-        if isinstance(data, str) and self._outencoding is not None:
-            data = data.encode(self._outencoding)
+    def _underflow(self):
+        inc = 0
+        while not inc:
+            if self._select(timeout=self._timeout.remaining):
+                res = self._input1(self._CHUNK_SIZE)
+                if not len(res):
+                    return False
+                inc = self._inpbuf.put(res)
+            else:
+                raise TimeoutError('Timeout while reading file')
+        return True
+
+    def _underflownb(self):
+        inc = 0
+        while not inc:
+            if self._select(timeout=0):
+                res = self._input1(self._CHUNK_SIZE)
+                if not len(res):
+                    return False
+                inc = self._inpbuf.put(res)
+            else:
+                return None
+        return True
+
+    def _overflow(self):
+        data = self._outbuf.get()
         self.out.write(data)
-
-    def isatty(self):
-        return self.raw.isatty() and self.out.isatty()
-
+        self.out.flush()
 
 stdio = UnifiedFileDuplex(sys.stdin, sys.stdout)
 stdbio = UnifiedFileDuplex(sys.stdin.buffer, sys.stdout.buffer)

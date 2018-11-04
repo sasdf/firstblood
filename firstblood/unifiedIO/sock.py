@@ -3,6 +3,7 @@ import time
 from .unified import UnifiedBase
 from .decors import _raw
 from .timeout import TimeoutError
+from .buffer import RawBuffer, TextBuffer
 
 
 # --------------------
@@ -31,7 +32,13 @@ class UnifiedTCPSock(UnifiedBase):
         return cls(sock, encoding)
 
     def __init__(self, sock, encoding='utf8'):
-        super().__init__(encoding=encoding)
+        if encoding is None:
+            inpbuf = RawBuffer()
+            outbuf = RawBuffer()
+        else:
+            inpbuf = TextBuffer(encoding=encoding)
+            outbuf = RawBuffer(encoding=encoding)
+        super().__init__(inpbuf, outbuf)
         self.raw = sock
 
     def _underflow(self):
@@ -44,7 +51,7 @@ class UnifiedTCPSock(UnifiedBase):
                 raise TimeoutError('Timeout while receiving from socket')
             if not len(res):
                 return False
-            inc = self._buffer.put(res)
+            inc = self._inpbuf.put(res)
         return True
 
     def _underflownb(self):
@@ -55,7 +62,7 @@ class UnifiedTCPSock(UnifiedBase):
                 res = self.raw.recv(self._CHUNK_SIZE)
                 if not len(res):
                     return False
-                inc = self._buffer.put(res)
+                inc = self._inpbuf.put(res)
             except BlockingIOError:
                 return None
         return True
@@ -63,14 +70,9 @@ class UnifiedTCPSock(UnifiedBase):
     def _readable(self):
         return True
 
-    def _write(self, data):
-        if isinstance(data, str):
-            enc = getattr(self._buffer, 'encoding', 'utf8')
-            data = data.encode(enc)
+    def _overflow(self):
+        data = self._outbuf.get()
         return self.raw.sendall(data)
 
     def _writeable(self):
-        return True
-
-    def _flush(self):
         return True
