@@ -8,7 +8,8 @@ class RawBuffer(object):
         self.null = b''
         self.datatype = bytes
         self.encoding = encoding
-        self.linesep = os.linesep.encode('ascii')
+        self._encoder = codecs.getencoder(encoding)
+        self.linesep, _ = self._encoder(os.linesep)
 
     @property
     def notempty(self):
@@ -51,9 +52,9 @@ class RawBuffer(object):
 
     def put(self, data):
         if isinstance(data, str):
-            data = data.encode(self.encoding)
+            data, _ = self._encoder(data)
         elif not isinstance(data, bytes):
-            data = str(data).encode(self.encoding)
+            data, _ = self._encoder(str(data))
         self._buffer += data
         return len(data)
 
