@@ -32,9 +32,8 @@ class BaseMixin(abc.ABC):
 
     def close(self, *args, **kwargs):
         """Close the file."""
-        if not self.closed:  # Recursive Guard
-            self.closed = True
-            self._close(*args, **kwargs)
+        self._close(*args, **kwargs)
+        return self
 
     def lines(self, data=None, keep=False):
         """Syntax sugar of readlines and writelines."""
@@ -54,5 +53,4 @@ class BaseMixin(abc.ABC):
 
     def __exit__(self, *args, **kwargs):
         self._exit(*args, **kwargs)
-        if not self.closed:  # Recursive guard
-            self.close()
+        self.close()
