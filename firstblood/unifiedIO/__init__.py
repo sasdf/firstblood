@@ -15,6 +15,6 @@ stdio = UnifiedFile((sys.stdin, sys.stdout))
 stdbio = UnifiedFile((sys.stdin.buffer, sys.stdout.buffer))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     from IPython import embed
     embed()

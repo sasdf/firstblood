@@ -1,17 +1,6 @@
-import io
-import functools
-import threading
 import abc
 
 from .base import BaseMixin
-
-
-def printable_binary(s):
-    return ''.join(
-        chr(c)
-        if 32 <= c < 127 or c == 0x0a
-        else '\\x%02x' % c
-        for c in s)
 
 
 class ReadableMixin(BaseMixin):
@@ -21,10 +10,11 @@ class ReadableMixin(BaseMixin):
 
     @abc.abstractmethod
     def _underflow(self):
-        pass
+        """Request for more data."""
 
+    @abc.abstractmethod
     def readable(self):
-        pass
+        """Return whether object was opened for reading."""
 
     # -----------
     # Constructor
@@ -41,7 +31,6 @@ class ReadableMixin(BaseMixin):
 
     def _raiseEOF(self):
         self.eof = True
-        self._inpbuf.eof()
         raise EOFError('Unexpected end of file.')
 
     # --------------
@@ -94,6 +83,11 @@ class ReadableMixin(BaseMixin):
 
     def readuntil(self, expected, keep=False, drop=True, last=False):
         """Read until `expected`."""
+        if not isinstance(expected, type(self._inpbuf.null)):
+            if isinstance(expected, str):
+                expected = expected.encode('utf8')
+            elif isinstance(expected, bytes):
+                expected = expected.decode('utf8')
         explen = len(expected)
         if not explen:
             raise ValueError('`expected` should not be empty string')
@@ -126,10 +120,3 @@ class ReadableMixin(BaseMixin):
         """Seek after `expected`."""
         self.readuntil(expected, keep=False, drop=True, last=False)
         return self
-
-    def input(self, prompt=''):
-        """
-        Print a prompt and read some bytes,
-        similar to builtin `input` function.
-        """
-        return self.write(prompt).readsome()

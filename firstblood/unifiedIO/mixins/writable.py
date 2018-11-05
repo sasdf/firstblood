@@ -18,11 +18,11 @@ class WritableMixin(BaseMixin):
 
     @abc.abstractmethod
     def _overflow(self):
-        pass
+        """Send more data"""
 
     @abc.abstractmethod
     def writable(self):
-        pass
+        """Return whether object was opened for writing."""
 
     # --------------
     # Public Methods

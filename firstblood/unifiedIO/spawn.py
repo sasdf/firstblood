@@ -34,15 +34,11 @@ class UnifiedProcess(InteractMixin, ReadableFileMixin, WritableFileMixin):
         except TimeoutExpired:
             raise TimeoutError('Timeout when wait the process to terminate')
 
-    def communicate(self, input=None):
-        try:
-            out, err = self.proc.communicate(input, self._timeout.remaining)
-            self._inpbuf.put(out)
-        except TimeoutExpired:
-            raise TimeoutError('Timeout when communicate with the process')
-
-    def _close(self, dir='send'):
-        if dir in ['out', 'write', 'send']:
+    def _close(self, dir=None):
+        if dir is None:
+            self.proc.stdin.close()
+            self.proc.stdout.close()
+        elif dir in ['out', 'write', 'send']:
             # FIXME: Use communicate instead
             self.proc.stdin.close()
         elif dir in ['in', 'read', 'recv']:
@@ -52,7 +48,12 @@ class UnifiedProcess(InteractMixin, ReadableFileMixin, WritableFileMixin):
                 "direction must be in "
                 "['in', 'out', 'read', 'recv', 'send', 'write']"
                 )
-        return self.wait()
+        if dir is None:
+            return self.wait()
+
+    def _exit(self, *exc_details):
+        self.kill()
+        self.close()
 
     def kill(self):
         self.proc.kill()

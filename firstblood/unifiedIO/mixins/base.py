@@ -18,7 +18,7 @@ class BaseMixin(abc.ABC):
 
     @abc.abstractmethod
     def _close(self):
-        pass
+        """Flush and close the IO object."""
 
     def _enter(self):
         return self

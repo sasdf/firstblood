@@ -97,8 +97,8 @@ class TextBuffer(RawBuffer):
         else:
             if len(self.undecoded) > 0:
                 raise UnicodeDecodeError(
-                    self._buffer.encoding,
-                    self._buffer.undecoded,
+                    self.encoding,
+                    self.undecoded,
                     0,
                     1,
                     'Truncated bytes.',
@@ -112,8 +112,8 @@ class TextBuffer(RawBuffer):
     def eof(self):
         if len(self.undecoded) > 0:
             raise UnicodeDecodeError(
-                self._buffer.encoding,
-                self._buffer.undecoded,
+                self.encoding,
+                self.undecoded,
                 0,
                 1,
                 'Truncated bytes.',

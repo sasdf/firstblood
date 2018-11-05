@@ -45,6 +45,7 @@ class ReadableFileMixin(Readable0Mixin):
             if _select(self.inp, read=True, timeout=self._timeout.remaining):
                 res = self.inp.read1(self._CHUNK_SIZE)
                 if not len(res):
+                    self._inpbuf.eof()
                     return False
                 inc = self._inpbuf.put(res)
             else:
@@ -57,6 +58,7 @@ class ReadableFileMixin(Readable0Mixin):
 
 class WritableFileMixin(WritableMixin):
     def _close(self):
+        self._outbuf.eof()
         return self.out.close()
 
     def _overflow(self):
