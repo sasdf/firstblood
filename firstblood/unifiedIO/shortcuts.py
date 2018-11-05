@@ -5,7 +5,8 @@ def _shortcut(funcname, mode, ret):
     def inner(path, *args, **kwargs):
         with UnifiedFile.open(path, mode) as f:
             res = getattr(f, funcname)(*args, **kwargs)
-            if ret: return res
+            if ret:
+                return res
     inner.__name__ = funcname
     inner.__qualname__ = funcname
     return inner

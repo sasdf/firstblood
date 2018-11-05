@@ -1,15 +1,15 @@
-import functools
 import sys
-from .shortcuts import *
-from .unified import *
-from .file import *
-from .sock import *
-from .stdio import stdio, stdbio
+import functools
 
+from .shortcuts import *
+from .file import UnifiedFile
+from .sock import UnifiedTCPSock
 
 open = UnifiedFile.open
 tcp = UnifiedTCPSock.connect
 local = functools.partial(UnifiedTCPSock.connect, 'localhost')
+stdio = UnifiedFile((sys.stdin, sys.stdout))
+stdbio = UnifiedFile((sys.stdin.buffer, sys.stdout.buffer))
 
 
 if __name__ == '__main__':

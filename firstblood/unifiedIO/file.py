@@ -1,115 +1,142 @@
 import io
 import select
-from .unified import UnifiedBase
-from .decors import _raw
+
+from .mixins import Readable0Mixin, WritableMixin, SeekableMixin
 from .timeout import TimeoutError
 from .buffer import RawBuffer, TextBuffer
 
 
-# --------------------
-# Unsupported Virtuals
-# --------------------
-# @_virtual('_iter')
-# @_virtual('_next')
-
-# ----------------
-# Inherit from raw
-# ----------------
-
-@_raw('_readable')
-@_raw('_writable')
-@_raw('_fileno')
-@_raw('_seek')
-@_raw('_seekable')
-@_raw('_tell')
-@_raw('_close')
-@_raw('_enter', '__enter__')
-@_raw('_exit', '__exit__')
-
-# ---------------
-# Method Bindings
-# ---------------
-
-@_raw('isatty', 'isatty')
-@_raw('mode', 'mode', prop=True)
-@_raw('name', 'name', prop=True)
-@_raw('truncate', 'truncate')
-
-class UnifiedFile(UnifiedBase):
-    # -----------
-    # Constructor
-    # -----------
-
-    @classmethod
-    def open(cls, *args, **kwargs):
-        return cls(io.open(*args, **kwargs))
-
-    def __init__(self, file):
-        binary = 'b' in file.mode
-
-        # Variables - public
-        if not binary:
-            # Assuming TextWrapper
-            assert(hasattr(file, 'buffer') and hasattr(file, 'encoding'))
-            assert(isinstance(file.encoding, str))
-            inpbuf = TextBuffer(file.encoding)
-            outbuf = RawBuffer(file.encoding)
-            super().__init__(inpbuf, outbuf)
-            self.raw = file.buffer
-            self._rawfile = file
-        else:
-            assert(not hasattr(file, 'encoding'))
-            inpbuf = RawBuffer()
-            outbuf = RawBuffer()
-            super().__init__(inpbuf, outbuf)
-            self.raw = file
-        self.closed = file.closed
-        self._input1 = self.raw.read1
-
-    # ---------------
-    # Private Methods
-    # ---------------
-
-    def _select(self, read=True, timeout=None):
-        args = [[], [], []]
+def _createBuffer(f, read=True):
+    if 'b' in f.mode:
+        assert(not hasattr(f, 'encoding'))
+        buf = RawBuffer()
+        raw = f
+    else:
+        # Assuming TextWrapper
+        assert(hasattr(f, 'buffer') and hasattr(f, 'encoding'))
+        assert(isinstance(f.encoding, str))
         if read:
-            args[0].append(self._fileno())
+            buf = TextBuffer(f.encoding)
         else:
-            args[1].append(self._fileno())
-        if timeout is not None and timeout >= 0:
-            args.append(timeout)
-        res = select.select(*args)
-        return sum(map(len, res)) > 0
+            buf = RawBuffer(f.encoding)
+        raw = f.buffer
+    return (raw, buf)
 
-    # ---------------
-    # Virtual Methods
-    # ---------------
+
+def _select(f, read=True, timeout=None):
+    args = [[], [], []]
+    if read:
+        args[0].append(f.fileno())
+    else:
+        args[1].append(f.fileno())
+    if timeout is not None and timeout >= 0:
+        args.append(timeout)
+    res = select.select(*args)
+    return sum(map(len, res)) > 0
+
+
+class ReadableFileMixin(Readable0Mixin):
+    def _close(self):
+        return self.inp.close()
 
     def _underflow(self):
         inc = 0
         while not inc:
-            if self._select(timeout=self._timeout.remaining):
-                res = self._input1(self._CHUNK_SIZE)
+            if _select(self.inp, read=True, timeout=self._timeout.remaining):
+                res = self.inp.read1(self._CHUNK_SIZE)
                 if not len(res):
                     return False
                 inc = self._inpbuf.put(res)
             else:
-                raise TimeoutError('Timeout while reading file')
+                raise TimeoutError('Timeout while reading f')
         return True
 
-    def _underflownb(self):
-        inc = 0
-        while not inc:
-            if self._select(timeout=0):
-                res = self._input1(self._CHUNK_SIZE)
-                if not len(res):
-                    return False
-                inc = self._inpbuf.put(res)
-            else:
-                return None
+    def readable(self):
         return True
+
+
+class WritableFileMixin(WritableMixin):
+    def _close(self):
+        return self.out.close()
 
     def _overflow(self):
         data = self._outbuf.get()
-        self._raw.write(data)
-        self._raw.flush()
+        self.out.write(data)
+        self.out.flush()
+
+    def writable(self):
+        return True
+
+
+class UnifiedFileDuplex(ReadableFileMixin, WritableFileMixin):
+    def __init__(self, *, inp, out, **kwargs):
+        inpraw, inpbuf = _createBuffer(inp, read=True)
+        outraw, outbuf = _createBuffer(out, read=False)
+        self.inp = inpraw
+        self.out = outraw
+        self._inpfile = inp
+        self._outfile = out
+        super().__init__(inpbuf=inpbuf, outbuf=outbuf, **kwargs)
+
+    def _close(self):
+        return super()._close()
+
+
+class UnifiedReadableFile(SeekableMixin, ReadableFileMixin):
+    def __init__(self, *, inp, **kwargs):
+        raw, buf = _createBuffer(inp, read=True)
+        self.inp = raw
+        self._inpfile = inp
+        super().__init__(inpbuf=buf, **kwargs)
+
+    def _seek(self, *args, **kwargs):
+        return self.inp.seek(*args, **kwargs)
+
+    def seekable(self):
+        return True
+
+
+class UnifiedWritableFile(SeekableMixin, WritableFileMixin):
+    def __init__(self, *, out, **kwargs):
+        raw, buf = _createBuffer(out, read=False)
+        self.out = raw
+        self._outfile = out
+        super().__init__(outbuf=buf, **kwargs)
+
+    def _seek(self, *args, **kwargs):
+        return self.out.seek(*args, **kwargs)
+
+    def seekable(self):
+        return True
+
+
+class UnifiedRWFile(UnifiedReadableFile, UnifiedWritableFile):
+    def __init__(self, *, f):
+        super().__init__(inp=f, out=f)
+
+    def _seek(self, *args, **kwargs):
+        return super()._seek(*args, **kwargs)
+
+    def _close(self):
+        return super()._close()
+
+
+def UnifiedFile(f):
+    if isinstance(f, tuple):
+        if len(f) != 2:
+            raise ValueError('Need to be a 2-tuple of I/O pair.')
+        inp, out = f
+        return UnifiedFileDuplex(inp=inp, out=out)
+    elif f.readable() and f.writable():
+        return UnifiedRWFile(f=f)
+    elif f.readable():
+        return UnifiedReadableFile(inp=f)
+    elif f.writable():
+        return UnifiedWritableFile(out=f)
+
+
+def UnifiedFileOpen(*args, **kwargs):
+    return UnifiedFile(open(*args, **kwargs))
+
+
+UnifiedFile.open = UnifiedFileOpen

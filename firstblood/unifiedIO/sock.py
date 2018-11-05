@@ -1,30 +1,11 @@
 import socket
-import time
-from .unified import UnifiedBase
-from .decors import _raw
+
+from .mixins import Readable0Mixin, WritableMixin, InteractMixin
 from .timeout import TimeoutError
 from .buffer import RawBuffer, TextBuffer
 
 
-# --------------------
-# Unsupported Virtuals
-# --------------------
-# @_virtual('_writelines')
-# @_virtual('_seek')
-# @_virtual('_seekable')
-# @_virtual('_tell')
-# @_virtual('_enter')
-# @_virtual('_exit')
-# @_virtual('_iter')
-# @_virtual('_next')
-
-# ----------------
-# Inherit from raw
-# ----------------
-@_raw('_close')
-@_raw('_fileno')
-
-class UnifiedTCPSock(UnifiedBase):
+class UnifiedTCPSock(InteractMixin, Readable0Mixin, WritableMixin):
     @classmethod
     def connect(cls, ip, port, encoding='utf8'):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -38,7 +19,7 @@ class UnifiedTCPSock(UnifiedBase):
         else:
             inpbuf = TextBuffer(encoding=encoding)
             outbuf = RawBuffer(encoding=encoding)
-        super().__init__(inpbuf, outbuf)
+        super().__init__(inpbuf=inpbuf, outbuf=outbuf)
         self.raw = sock
 
     def _underflow(self):
@@ -54,25 +35,16 @@ class UnifiedTCPSock(UnifiedBase):
             inc = self._inpbuf.put(res)
         return True
 
-    def _underflownb(self):
-        inc = 0
-        while not inc:
-            self.raw.settimeout(0)
-            try:
-                res = self.raw.recv(self._CHUNK_SIZE)
-                if not len(res):
-                    return False
-                inc = self._inpbuf.put(res)
-            except BlockingIOError:
-                return None
-        return True
-
-    def _readable(self):
+    def _close(self, *args, **kwargs):
+        self.raw.close(*args, **kwargs)
         return True
 
     def _overflow(self):
         data = self._outbuf.get()
         return self.raw.sendall(data)
 
-    def _writeable(self):
+    def readable(self):
+        return True
+
+    def writable(self):
         return True
