@@ -15,7 +15,7 @@ def last(func):
     return inner
 
 
-def wrapjoin(func, first=True, flatten=False):
+def strJoin(func, first=True, flatten=False):
     @fn.wraps(func)
     def inner(self, *args, **kwargs):
         if first:
@@ -23,12 +23,26 @@ def wrapjoin(func, first=True, flatten=False):
         else:
             res = func(*args, self, **kwargs)
 
-        join = conv('', type(self))
+        if flatten:
+            res = ''.join(res)
+        else:
+            res = (''.join(p) for p in res)
+        return res
+    return inner
+
+
+def bytesJoin(func, first=True, flatten=False):
+    @fn.wraps(func)
+    def inner(self, *args, **kwargs):
+        if first:
+            res = func(self, *args, **kwargs)
+        else:
+            res = func(*args, self, **kwargs)
 
         if flatten:
-            res = join.join(res)
+            res = bytes(res)
         else:
-            res = (join.join(p) for p in res)
+            res = (bytes(p) for p in res)
         return res
     return inner
 
@@ -134,8 +148,8 @@ def _(s):
 @needFlush
 def addMethods():
     blacklist = ['_io', 'jedi.common.context']
-    Strs = getAllSubclasses(abc.ByteString, blacklist)
-    Strs.add(str)
+    Bytes = getAllSubclasses(abc.ByteString, blacklist)
+    Strs = { str }
 
     Sequences = getAllSubclasses(abc.Sequence, blacklist) # Reversible, Collection
 
@@ -143,7 +157,7 @@ def addMethods():
 
     Reversibles = getAllSubclasses(abc.Reversible, blacklist) # Iterable
 
-    for t in Iterables - Strs:
+    for t in Iterables - Strs - Bytes:
         patch(t, 'chain', fn.partialmethod(it.chain))
         patch(t, 'compress', fn.partialmethod(it.compress))
         patch(t, 'dropwhile', last(it.dropwhile))
@@ -170,25 +184,45 @@ def addMethods():
         patch(t, 'mean', property(mean))
         patch(t, 'sorted', property(sorted))
 
-    for t in Strs:
-        patch(t, 'chain', wrapjoin(it.chain, flatten=True))
-        patch(t, 'compress', wrapjoin(it.compress, flatten=True))
-        patch(t, 'dropwhile', wrapjoin(it.dropwhile, first=False, flatten=True))
-        patch(t, 'filter', wrapjoin(filter, first=False, flatten=True))
-        patch(t, 'filterfalse', wrapjoin(it.filterfalse, first=False, flatten=True))
-        patch(t, 'groupby', wrapjoin(it.groupby, flatten=False))
-        patch(t, 'takewhile', wrapjoin(it.takewhile, first=False, flatten=True))
-        patch(t, 'tee', wrapjoin(it.tee, flatten=False))
-        patch(t, 'zip', wrapjoin(zip, flatten=False))
-        patch(t, 'zip_longest', wrapjoin(it.zip_longest, flatten=False))
+    for t in Bytes:
+        patch(t, 'chain', bytesJoin(it.chain, flatten=True))
+        patch(t, 'compress', bytesJoin(it.compress, flatten=True))
+        patch(t, 'dropwhile', bytesJoin(it.dropwhile, first=False, flatten=True))
+        patch(t, 'filter', bytesJoin(filter, first=False, flatten=True))
+        patch(t, 'filterfalse', bytesJoin(it.filterfalse, first=False, flatten=True))
+        patch(t, 'groupby', bytesJoin(it.groupby, flatten=False))
+        patch(t, 'takewhile', bytesJoin(it.takewhile, first=False, flatten=True))
+        patch(t, 'tee', bytesJoin(it.tee, flatten=False))
+        patch(t, 'zip', bytesJoin(zip, flatten=False))
+        patch(t, 'zip_longest', bytesJoin(it.zip_longest, flatten=False))
 
-        patch(t, 'product', wrapjoin(kwWrapper(it.product, int, 'repeat'), flatten=False))
-        patch(t, 'permutations', wrapjoin(it.permutations, flatten=False))
-        patch(t, 'combinations', wrapjoin(it.combinations, flatten=False))
+        patch(t, 'product', bytesJoin(kwWrapper(it.product, int, 'repeat'), flatten=False))
+        patch(t, 'permutations', bytesJoin(it.permutations, flatten=False))
+        patch(t, 'combinations', bytesJoin(it.combinations, flatten=False))
         patch(t, 'combinations_with_replacement',
-            wrapjoin(it.combinations_with_replacement, flatten=False))
+            bytesJoin(it.combinations_with_replacement, flatten=False))
 
-        patch(t, 'sorted', property(wrapjoin(sorted, flatten=True)))
+        patch(t, 'sorted', property(bytesJoin(sorted, flatten=True)))
+
+    for t in Strs:
+        patch(t, 'chain', strJoin(it.chain, flatten=True))
+        patch(t, 'compress', strJoin(it.compress, flatten=True))
+        patch(t, 'dropwhile', strJoin(it.dropwhile, first=False, flatten=True))
+        patch(t, 'filter', strJoin(filter, first=False, flatten=True))
+        patch(t, 'filterfalse', strJoin(it.filterfalse, first=False, flatten=True))
+        patch(t, 'groupby', strJoin(it.groupby, flatten=False))
+        patch(t, 'takewhile', strJoin(it.takewhile, first=False, flatten=True))
+        patch(t, 'tee', strJoin(it.tee, flatten=False))
+        patch(t, 'zip', strJoin(zip, flatten=False))
+        patch(t, 'zip_longest', strJoin(it.zip_longest, flatten=False))
+
+        patch(t, 'product', strJoin(kwWrapper(it.product, int, 'repeat'), flatten=False))
+        patch(t, 'permutations', strJoin(it.permutations, flatten=False))
+        patch(t, 'combinations', strJoin(it.combinations, flatten=False))
+        patch(t, 'combinations_with_replacement',
+            strJoin(it.combinations_with_replacement, flatten=False))
+
+        patch(t, 'sorted', property(strJoin(sorted, flatten=True)))
 
     for t in Iterables:
         patch(t, 'accumulate', fn.partialmethod(it.accumulate))
