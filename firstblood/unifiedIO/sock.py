@@ -30,6 +30,9 @@ class UnifiedTCPSock(InteractMixin, Readable0Mixin, WritableMixin):
                 res = self.raw.recv(self._CHUNK_SIZE)
             except (socket.timeout, BlockingIOError):
                 raise TimeoutError('Timeout while receiving from socket')
+            except ConnectionResetError:
+                self._inpbuf.eof()
+                return False
             if not len(res):
                 self._inpbuf.eof()
                 return False
